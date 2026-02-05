@@ -1,0 +1,9 @@
+.env
+docker-compose-dec.yml
+venv
+pipeline_narrative.md
+setup_and_execution_guide.md
+__pycache__/
+logs
+.github/
+quick_start.md
