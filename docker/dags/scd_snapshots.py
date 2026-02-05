@@ -13,7 +13,7 @@ with DAG(
     dag_id="SCD2_snapshots",
     default_args=default_args,
     description="Run dbt snapshots for SCD2",
-    schedule_interval="@daily",
+    schedule_interval=None,
     start_date=datetime(2025, 9, 1),
     catchup=False,
     tags=["dbt", "snapshots"],

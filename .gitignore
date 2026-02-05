@@ -5,7 +5,6 @@ pipeline_narrative.md
 setup_and_execution_guide.md
 __pycache__/
 logs
-.github/
 quick_start.md
 profiles.yml
 .user.yml

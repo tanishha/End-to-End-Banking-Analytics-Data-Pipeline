@@ -133,7 +133,7 @@ def load_to_snowflake(**kwargs):
         print(f"Data loaded into {table}: {rows_loaded} rows")
         
         # Get copy command status
-        status_result = cur.execute(f"SELECT * FROM TABLE(RESULT_SCAN(LAST_QUERY_ID()))").fetchall()
+        status_result = cur.execute("SELECT * FROM TABLE(RESULT_SCAN(LAST_QUERY_ID()))").fetchall()
         print(f"Copy status: {status_result}")
         
         # Verify data was actually loaded
@@ -155,7 +155,7 @@ with DAG(
     dag_id="minio_to_snowflake_banking",
     default_args=default_args,
     description="Load MinIO parquet into Snowflake RAW tables",
-    schedule_interval="@daily",
+    schedule_interval=None,
     start_date=datetime(2025, 1, 1),
     catchup=False,
 ) as dag:
