@@ -116,12 +116,12 @@ services:
       - SNOWFLAKE_SCHEMA=${SNOWFLAKE_SCHEMA}
       - KAFKA_BOOTSTRAP=${KAFKA_BOOTSTRAP}
       - KAFKA_GROUP=${KAFKA_GROUP}
-      - DBT_PROFILES_DIR=/opt/airflow/banking_dbt/.dbt
+      - DBT_PROFILES_DIR=/opt/airflow/healthcare_dbt/.dbt
     volumes:
       - ./docker/dags:/opt/airflow/dags
       - ./docker/logs:/opt/airflow/logs
       - ./docker/plugins:/opt/airflow/plugins
-      - ./banking_dbt:/opt/airflow/banking_dbt
+      - ./healthcare_dbt:/opt/airflow/healthcare_dbt
     ports:
       - "8081:8080"
     command: webserver
@@ -150,12 +150,12 @@ services:
       - SNOWFLAKE_SCHEMA=${SNOWFLAKE_SCHEMA}
       - KAFKA_BOOTSTRAP=${KAFKA_BOOTSTRAP}
       - KAFKA_GROUP=${KAFKA_GROUP}
-      - DBT_PROFILES_DIR=/opt/airflow/banking_dbt/.dbt
+      - DBT_PROFILES_DIR=/opt/airflow/healthcare_dbt/.dbt
     volumes:
       - ./docker/dags:/opt/airflow/dags
       - ./docker/logs:/opt/airflow/logs
       - ./docker/plugins:/opt/airflow/plugins
-      - ./banking_dbt:/opt/airflow/banking_dbt
+      - ./healthcare_dbt:/opt/airflow/healthcare_dbt
     command: scheduler
 
   airflow-postgres:
@@ -177,4 +177,4 @@ volumes:
 
 networks:
   default:
-    name: banking-mds-net
+    name: healthcare-mds-net

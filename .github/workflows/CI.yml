@@ -16,7 +16,7 @@ jobs:
         env:
           POSTGRES_USER: ${{ secrets.POSTGRES_USER }}
           POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
-          POSTGRES_DB: banking
+          POSTGRES_DB: healthcare_
         ports:
           - 5432:5432
         options: >-
@@ -53,7 +53,7 @@ jobs:
         run: |
           mkdir -p ~/.dbt
           cat > ~/.dbt/profiles.yml <<EOL
-          banking_dbt:
+          healthcare_dbt:
             target: dev
             outputs:
               dev:
@@ -62,13 +62,13 @@ jobs:
                 user: ${{ secrets.SNOWFLAKE_USER }}
                 password: ${{ secrets.SNOWFLAKE_PASSWORD }}
                 role: ACCOUNTADMIN
-                database: BANKING
+                database: healthcare
                 warehouse: ${{ secrets.SNOWFLAKE_WAREHOUSE }}
-                schema: ANALYTICS
+                schema: analytics
           EOL
 
       - name: dbt compile (validation)
         run: |
-          cd banking_dbt
+          cd healthcare_dbt
           dbt deps
           dbt compile

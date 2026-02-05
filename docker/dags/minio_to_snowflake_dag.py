@@ -24,7 +24,7 @@ SNOWFLAKE_WAREHOUSE = os.getenv("SNOWFLAKE_WAREHOUSE")
 SNOWFLAKE_DB = os.getenv("SNOWFLAKE_DB")
 SNOWFLAKE_SCHEMA = os.getenv("SNOWFLAKE_SCHEMA")
 
-TABLES = ["customers", "accounts", "transactions"]
+TABLES = ["members", "policies", "claims"]
 
 # -------- Python Callables --------
 def download_from_minio():
@@ -75,8 +75,8 @@ def load_to_snowflake(**kwargs):
 
     # Create tables with schema matching PostgreSQL source columns
     table_schemas = {
-        "customers": """
-            CREATE TABLE IF NOT EXISTS customers (
+        "members": """
+            CREATE TABLE IF NOT EXISTS members (
                 id INT,
                 first_name VARCHAR(100),
                 last_name VARCHAR(100),
@@ -84,24 +84,28 @@ def load_to_snowflake(**kwargs):
                 created_at TIMESTAMP_NTZ
             )
         """,
-        "accounts": """
-            CREATE TABLE IF NOT EXISTS accounts (
+        "policies": """
+            CREATE TABLE IF NOT EXISTS policies (
                 id INT,
-                customer_id INT,
-                account_type VARCHAR(50),
-                balance DECIMAL(18, 2),
-                currency CHAR(3),
+                member_id INT,
+                policy_type VARCHAR(50),
+                coverage_amount DECIMAL(18, 2),
+                premium_amount DECIMAL(10, 2),
+                policy_status VARCHAR(20),
+                start_date DATE,
+                end_date DATE,
                 created_at TIMESTAMP_NTZ
             )
         """,
-        "transactions": """
-            CREATE TABLE IF NOT EXISTS transactions (
+        "claims": """
+            CREATE TABLE IF NOT EXISTS claims (
                 id BIGINT,
-                account_id INT,
-                txn_type VARCHAR(50),
-                amount DECIMAL(18, 2),
-                related_account_id INT,
-                status VARCHAR(20),
+                policy_id INT,
+                claim_type VARCHAR(50),
+                claim_amount DECIMAL(18, 2),
+                approved_amount DECIMAL(18, 2),
+                claim_status VARCHAR(20),
+                service_date DATE,
                 created_at TIMESTAMP_NTZ
             )
         """
@@ -152,7 +156,7 @@ default_args = {
 }
 
 with DAG(
-    dag_id="minio_to_snowflake_banking",
+    dag_id="minio_to_snowflake_healthcare",
     default_args=default_args,
     description="Load MinIO parquet into Snowflake RAW tables",
     schedule_interval=None,

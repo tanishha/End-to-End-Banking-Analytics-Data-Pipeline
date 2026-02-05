@@ -38,7 +38,7 @@ jobs:
         run: |
           mkdir -p ~/.dbt
           cat > ~/.dbt/profiles.yml <<EOL
-          banking_dbt:
+          healthcare_dbt:
             target: prod
             outputs:
               prod:
@@ -47,9 +47,9 @@ jobs:
                 user: ${{ secrets.SNOWFLAKE_USER }}
                 password: ${{ secrets.SNOWFLAKE_PASSWORD }}
                 role: ACCOUNTADMIN
-                database: BANKING
+                database: healthcare
                 warehouse: ${{ secrets.SNOWFLAKE_WAREHOUSE }}
-                schema: ANALYTICS
+                schema: analytics
           EOL
 
       # ------------------------
@@ -57,21 +57,21 @@ jobs:
       # ------------------------
       - name: dbt snapshot (SCD Type 2)
         run: |
-          cd banking_dbt
+          cd healthcare_dbt
           dbt deps
           dbt snapshot   # captures current state for SCD Type 2
 
       - name: dbt run (staging)
         run: |
-          cd banking_dbt
+          cd healthcare_dbt
           dbt run --select staging
 
       - name: dbt run (marts)
         run: |
-          cd banking_dbt
+          cd healthcare_dbt
           dbt run --select marts
 
       - name: dbt test (prod)
         run: |
-          cd banking_dbt
+          cd healthcare_dbt
           dbt test   # validates production data

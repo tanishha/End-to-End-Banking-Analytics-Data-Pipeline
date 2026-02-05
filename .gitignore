@@ -10,5 +10,5 @@ profiles.yml
 .user.yml
 docker/minio/data/
 docker/postgres/data/
-banking_dbt/logs/
-banking_dbt/target/
+healthcare_dbt/logs/
+healthcare_dbt/target/

@@ -1,27 +1,31 @@
-# End-to-End Banking Analytics Data Pipeline
+# End-to-End Healthcare Insurance Analytics Data Pipeline
 
-A production-grade data pipeline that simulates real banking operations, captures changes in real-time, stages data in a data lake, and transforms it into analytics-ready tables with historical tracking (SCD Type 2) and temporal joins.
+A production-grade data pipeline that simulates real healthcare insurance operations, captures changes in near real-time, stages data in a data lake, and transforms it into analytics-ready tables with historical tracking (SCD Type 2) and temporal joins.
+
+---
 
 ## Project Overview
 
-This pipeline demonstrates a complete modern data stack architecture used by financial institutions and large enterprises. It captures transactional data from a PostgreSQL OLTP database, streams changes via Kafka+Debezium CDC, stages Parquet files in MinIO, loads them into Snowflake, and transforms them using dbt with SCD Type 2 dimensional modeling. Everything is orchestrated by Airflow with automated CI/CD via GitHub Actions.
+This project demonstrates a modern **payer-style analytics architecture** used by healthcare insurance organizations. It ingests synthetic healthcare insurance data from a PostgreSQL OLTP system, streams changes using Kafka, stages Parquet data in an object store, and transforms it in Snowflake using dbt with **SCD Type 2 dimensional modeling**. The entire workflow is orchestrated with Airflow and deployed through automated CI/CD using GitHub Actions.
 
-**Use Case:** Track customer and account changes over time while maintaining referential integrity in fact tables using temporal joins.
+**Use Case:**  
+Track **member enrollment, policy coverage changes, and claims activity over time**, while ensuring fact tables always join to the **correct historical version** of member and policy dimensions.
 
 ---
 
 ## Tech Stack
 
 | Component | Technology | Purpose |
-|-----------|-----------|---------|
-| **Source** | PostgreSQL | OLTP database with logical replication |
-| **CDC** | Debezium + Kafka | Real-time change capture and streaming |
-| **Data Lake** | MinIO | S3-compatible object storage for Parquet staging |
-| **Orchestration** | Apache Airflow | DAG scheduling and pipeline automation |
-| **Cloud DW** | Snowflake | Scalable cloud data warehouse |
-| **Transformation** | dbt | Data transformation with SCD Type 2 and temporal joins |
-| **Testing** | GitHub Actions | CI/CD for automated testing and deployment |
-| **Language** | Python | Data scripts and DAG development |
+|---------|-----------|---------|
+| **Source** | PostgreSQL | OLTP database for members, policies, and claims |
+| **Streaming / CDC** | Kafka | Event-driven ingestion of data changes |
+| **Data Lake** | MinIO | S3-compatible storage for Parquet staging |
+| **Orchestration** | Apache Airflow | Pipeline scheduling and dependency management |
+| **Cloud DW** | Snowflake | Scalable analytics warehouse |
+| **Transformation** | dbt | SCD Type 2 modeling and temporal joins |
+| **CI/CD** | GitHub Actions | Automated testing and deployment |
+| **Query Tool** | DBeaver | Data validation and exploration |
+| **Language** | Python | Data generation, ingestion, and DAGs |
 
 ---
 
@@ -29,104 +33,124 @@ This pipeline demonstrates a complete modern data stack architecture used by fin
 
 ### 1. Data Simulation (Faker + PostgreSQL)
 
-- 1,000 customers with realistic attributes
-- 2,000 accounts with varying balances, types, and currencies
-- 5,000 transactions with realistic timestamps
+- 1,000 synthetic insurance members  
+- 1,000+ insurance policies (HMO, PPO, Medicare, Medicaid)  
+- 5,000+ insurance claims with realistic statuses and dates  
 
-Data generator creates synthetic banking data and inserts it into PostgreSQL. Every INSERT is captured by PostgreSQL's WAL, enabling Debezium to detect changes without modifying application code.
+A Python-based generator creates **synthetic but rule-driven healthcare insurance data** and inserts it into PostgreSQL. Data simulates real-world payer workflows including policy lifecycles and claim processing states. DBeaver is used to validate data across PostgreSQL and Snowflake.
 
 ---
 
-### 2. Kafka + Debezium CDC (Change Data Capture)
+### 2. Event-Driven Ingestion (Kafka)
 
-- Zero-loss change capture from PostgreSQL WAL
-- Streaming changes to Kafka topics in real-time
-- Exactly-once delivery semantics
+- Near-real-time ingestion of member, policy, and claim events  
+- Topic-level separation by entity  
+- Replayable event streams  
 
-Debezium monitors PostgreSQL's transaction log and publishes every INSERT, UPDATE, and DELETE to Kafka topics. Downstream systems react to data changes near real-time. The connector runs continuously in the background.
+Changes in PostgreSQL are streamed into Kafka topics, enabling downstream systems to process updates incrementally instead of relying on batch reloads. This mirrors how modern healthcare analytics platforms ingest operational data.
 
 ---
 
 ### 3. MinIO Data Lake (Parquet Staging)
 
-- Parquet files organized by table directory
-- Columnar compression (70-80% savings vs JSON)
-- S3-compatible storage for standard data tools
-- Historical Parquet files retained for point-in-time recovery
+- Entity-partitioned Parquet files  
+- Columnar compression (70–80% storage savings)  
+- Historical files retained for backfills and recovery  
+- S3-compatible storage  
 
-Kafka consumer service converts incoming change events into Parquet format and uploads to MinIO. This serves as a reliable intermediate layer between streaming CDC and the data warehouse.
+Kafka consumers convert streaming events into Parquet files and store them in MinIO. This layer decouples ingestion from warehouse loading and enables reliable reprocessing.
 
 ---
 
-### 4. Airflow Orchestration (Data Loading)
+### 4. Airflow Orchestration (Warehouse Loading)
 
-- Daily scheduled DAGs at 00:00 UTC
-- Automatic Parquet download and Snowflake upload
-- Schema validation and row count verification
-- Manual trigger capability from Airflow UI
+- Scheduled daily DAGs  
+- Automated Parquet-to-Snowflake ingestion  
+- Schema validation and row-count checks  
+- Retry and failure handling  
 
-First Airflow DAG downloads latest Parquet files from MinIO, creates fresh Snowflake tables with correct schema, uploads files to Snowflake staging, executes COPY commands to load data, and verifies row counts. Failed tasks automatically retry.
+Airflow orchestrates ingestion from MinIO into Snowflake using staged COPY operations. Each run validates schema consistency and record counts before downstream transformations.
 
 ---
 
 ### 5. dbt Transformations (SCD Type 2 + Temporal Joins)
 
-- Snapshots track customer/account changes over time
-- Staging layer cleans and renames raw columns
-- Dimensions with effective date ranges preserve history
-- Facts with temporal joins ensure correct dimension versions per transaction date
-- Data quality tests validate all transformations
+- Snapshots track historical changes to members and policies  
+- Staging models standardize raw fields  
+- Dimension tables preserve history with effective date ranges  
+- Fact tables use temporal joins to resolve correct dimension versions  
+- dbt tests enforce data quality and referential integrity  
 
-Second Airflow DAG triggers dbt in sequence. Snapshots compare new data against previous versions—if columns changed, old rows are marked with end dates. Staging tables clean raw data. Dimensions are built from snapshots. Fact tables use temporal joins to match each transaction to the correct account/customer version based on transaction date.
+Snapshots capture attribute changes over time. Dimension tables expose historical views. Claims facts are joined to the **correct policy and member version based on service date**, ensuring accurate historical reporting.
 
 ---
 
-### 6. GitHub Actions CI/CD (Automated Testing & Deployment)
+### 6. GitHub Actions CI/CD (Automated Validation & Deployment)
 
-- CI tests code BEFORE merge to main (validates dbt compilation, Python syntax, unit tests)
-- CD deploys to production AFTER merge (runs snapshots, staging, facts, data quality tests)
-- Feature branch workflow ensures only tested code reaches production
+- CI runs on every push and pull request  
+- Validates Python code, dbt compilation, and project structure  
+- CD deploys snapshots, models, and tests on merge to main  
+- No manual production deployments  
 
-When code is pushed to a feature branch and PR created to main, CI automatically runs tests. Code can only merge if all tests pass. Once merged, CD automatically deploys to production Snowflake with zero manual steps.
+This workflow ensures only validated transformations and pipelines reach production Snowflake environments.
 
 ---
 
 ## Quick Start
 
 ```bash
-# 1. Setup
+# 1. Setup environment
 python -m venv venv
 .\venv\Scripts\Activate.ps1
 pip install -r requirements.txt
 
-# 2. Create dbt profiles
+# 2. Configure dbt profile
 mkdir C:\Users\Tanisha\.dbt
-# Edit C:\Users\Tanisha\.dbt\profiles.yml with Snowflake credentials
+# Edit profiles.yml with Snowflake credentials
 
-# 3. Start Docker
+# 3. Start infrastructure
 docker-compose up -d
-docker-compose ps  # Wait for all "Up"
+docker-compose ps
 
-# 4. Load data
-cd data-generator && python data_generator.py
-cd kafka-debezium && python setup_postgres_connector.py
+# 4. Generate data
+cd data-generator
+python data_generator.py
 
 # 5. Run pipeline
-# Open http://localhost:8081 (Airflow UI)
-# Trigger: minio_to_snowflake_banking (7-15 min)
-# Trigger: SCD2_snapshots (5-13 min)
+# Open Airflow UI
+# Trigger: minio_to_snowflake_healthcare
+# Trigger: scd2_snapshots
+
 
 
 ## Key Features
 
-- Real-time CDC capturing every database change instantly
-- SCD Type 2 tracking historical changes with effective dates
-- Temporal joins linking transactions to correct dimension versions
-- Automated pipelines via Airflow DAGs on schedule
-- Data quality validation through dbt tests
-- GitHub Actions CI/CD automating testing and deployment
-- Scalable architecture built on Snowflake
+- **API-driven synthetic data generation**  
+  Generates realistic healthcare insurance data (members, policies, claims) using rule-based logic to simulate real payer workflows without using sensitive data.
 
+- **Near-real-time ingestion**  
+  Event-driven ingestion using Kafka enables incremental processing of member enrollments, policy updates, and claim events instead of full batch reloads.
 
+- **Lakehouse-style architecture**  
+  Decouples ingestion and analytics using Parquet files staged in MinIO before loading into Snowflake, improving reliability and reprocessing capability.
 
+- **SCD Type 2 historical tracking**  
+  Tracks full history of member and policy attribute changes using dbt snapshots with effective start and end dates.
 
+- **Temporal joins for facts**  
+  Ensures each claim is joined to the **correct historical version** of the member and policy based on service date, enabling accurate point-in-time reporting.
+
+- **Analytics-ready dimensional models**  
+  Builds clean staging, dimension, and fact tables optimized for BI tools and downstream analytics.
+
+- **Automated orchestration**  
+  Apache Airflow schedules and manages ingestion, transformation, validation, and retries with full observability.
+
+- **Built-in data quality checks**  
+  dbt tests enforce not-null constraints, referential integrity, accepted values, and snapshot consistency.
+
+- **CI/CD-driven deployments**  
+  GitHub Actions automates validation, compilation, testing, and production deployments with zero manual intervention.
+
+- **Enterprise-aligned design**  
+  Architecture and modeling patterns align with real-world healthcare insurance and payer analytics platforms.

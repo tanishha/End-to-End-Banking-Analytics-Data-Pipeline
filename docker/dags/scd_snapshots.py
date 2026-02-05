@@ -21,17 +21,17 @@ with DAG(
 
     dbt_snapshot = BashOperator(
         task_id="dbt_snapshot",
-        bash_command="cd /opt/airflow/banking_dbt && dbt snapshot"
+        bash_command="cd /opt/airflow/healthcare_dbt && dbt snapshot"
     )
     
     dbt_run_staging = BashOperator(
         task_id="dbt_run_staging",
-        bash_command="cd /opt/airflow/banking_dbt && dbt run --select staging"
+        bash_command="cd /opt/airflow/healthcare_dbt && dbt run --select staging"
     )
     
     dbt_run_marts = BashOperator(
         task_id="dbt_run_marts",
-        bash_command="cd /opt/airflow/banking_dbt && dbt run --select marts"
+        bash_command="cd /opt/airflow/healthcare_dbt && dbt run --select marts"
     )
 
     # Execution order: snapshot → staging → marts

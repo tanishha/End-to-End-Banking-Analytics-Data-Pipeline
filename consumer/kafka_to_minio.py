@@ -13,9 +13,9 @@ load_dotenv()
 
 # Kafka consumer settings
 consumer = KafkaConsumer(
-    'banking_server.public.customers',
-    'banking_server.public.accounts',
-    'banking_server.public.transactions',
+    'healthcare_server.public.members',
+    'healthcare_server.public.policies',
+    'healthcare_server.public.claims',
     bootstrap_servers=os.getenv("KAFKA_BOOTSTRAP"),
     auto_offset_reset='earliest',
     enable_auto_commit=True,
@@ -53,9 +53,9 @@ def write_to_minio(table_name, records):
 # Batch consume
 batch_size = 50
 buffer = {
-    'banking_server.public.customers': [],
-    'banking_server.public.accounts': [],
-    'banking_server.public.transactions': []
+    'healthcare_server.public.members': [],
+    'healthcare_server.public.policies': [],
+    'healthcare_server.public.claims': []
 }
 
 print("Connected to Kafka. Listening for messages...")

@@ -7,21 +7,26 @@ import argparse
 import sys
 import os
 from dotenv import load_dotenv
+from datetime import date, timedelta
 
 load_dotenv()
 
 # -----------------------------
-# Project configuration (safe to hardcode here)
+# Project configuration
 # -----------------------------
-NUM_CUSTOMERS = 10
-ACCOUNTS_PER_CUSTOMER = 2
-NUM_TRANSACTIONS = 50
-MAX_TXN_AMOUNT = 1000.00
-CURRENCY = "USD"
+NUM_MEMBERS = 10
+POLICIES_PER_MEMBER = 1
+NUM_CLAIMS = 50
 
-# Non-zero initial balances
-INITIAL_BALANCE_MIN = Decimal("10.00")
-INITIAL_BALANCE_MAX = Decimal("1000.00")
+# Coverage / premium ranges
+COVERAGE_MIN = Decimal("5000.00")
+COVERAGE_MAX = Decimal("200000.00")
+PREMIUM_MIN = Decimal("50.00")
+PREMIUM_MAX = Decimal("1200.00")
+
+# Claim ranges
+CLAIM_MIN = Decimal("10.00")
+CLAIM_MAX = Decimal("5000.00")
 
 # Loop config
 DEFAULT_LOOP = True
@@ -29,7 +34,7 @@ MAX_ITERATIONS = 100
 SLEEP_SECONDS = 2
 
 # CLI override (run once mode)
-parser = argparse.ArgumentParser(description="Run fake data generator")
+parser = argparse.ArgumentParser(description="Run fake healthcare insurance data generator")
 parser.add_argument("--once", action="store_true", help="Run a single iteration and exit")
 args = parser.parse_args()
 LOOP = not args.once and DEFAULT_LOOP
@@ -39,9 +44,82 @@ LOOP = not args.once and DEFAULT_LOOP
 # -----------------------------
 fake = Faker()
 
+POLICY_TYPES = ["HMO", "PPO", "EPO", "Medicare", "Medicaid"]
+POLICY_STATUSES = ["ACTIVE", "LAPSED", "TERMINATED"]
+CLAIM_TYPES = ["MEDICAL", "DENTAL", "PHARMACY"]
+CLAIM_STATUSES = ["SUBMITTED", "APPROVED", "REJECTED", "PAID"]
+
 def random_money(min_val: Decimal, max_val: Decimal) -> Decimal:
     val = Decimal(str(random.uniform(float(min_val), float(max_val))))
     return val.quantize(Decimal("0.01"), rounding=ROUND_DOWN)
+
+def random_dob(min_age: int = 0, max_age: int = 90) -> date:
+    """Return a DOB such that age is between min_age and max_age."""
+    today = date.today()
+    start = today - timedelta(days=max_age * 365)
+    end = today - timedelta(days=min_age * 365)
+    # Faker date_between takes strings or dates
+    return fake.date_between(start_date=start, end_date=end)
+
+def random_policy_dates() -> tuple[date, date | None]:
+    """Policy start date within last 5 years. End date optional."""
+    today = date.today()
+    start = fake.date_between(start_date=today - timedelta(days=5 * 365), end_date=today)
+    # 30% chance of end_date set (terminated/lapsed)
+    if random.random() < 0.30:
+        end = fake.date_between(start_date=start, end_date=today)
+        return start, end
+    return start, None
+
+def derive_premium(policy_type: str, coverage_amount: Decimal) -> Decimal:
+    """Simple rule-based premium so data looks consistent."""
+    base = {
+        "HMO": Decimal("0.0030"),
+        "PPO": Decimal("0.0040"),
+        "EPO": Decimal("0.0035"),
+        "Medicare": Decimal("0.0020"),
+        "Medicaid": Decimal("0.0015"),
+    }[policy_type]
+    premium = (coverage_amount * base).quantize(Decimal("0.01"), rounding=ROUND_DOWN)
+    # clamp to configured range
+    if premium < PREMIUM_MIN:
+        premium = PREMIUM_MIN
+    if premium > PREMIUM_MAX:
+        premium = PREMIUM_MAX
+    return premium
+
+def choose_policy_status(end_date: date | None) -> str:
+    if end_date is None:
+        return "ACTIVE"
+    return random.choice(["LAPSED", "TERMINATED"])
+
+def service_date_within_policy(start_date: date, end_date: date | None) -> date:
+    today = date.today()
+    upper = end_date if end_date else today
+    if upper < start_date:
+        upper = start_date
+    return fake.date_between(start_date=start_date, end_date=upper)
+
+def claim_outcome(claim_amount: Decimal) -> tuple[str, Decimal]:
+    """
+    Determine status + approved_amount with basic realism:
+    - REJECTED: approved_amount = 0
+    - APPROVED: approved_amount <= claim_amount
+    - PAID: approved_amount <= claim_amount
+    - SUBMITTED: approved_amount = 0 (unknown yet)
+    """
+    status = random.choices(
+        population=["SUBMITTED", "APPROVED", "REJECTED", "PAID"],
+        weights=[0.35, 0.25, 0.15, 0.25],
+        k=1,
+    )[0]
+
+    if status in ["SUBMITTED", "REJECTED"]:
+        return status, Decimal("0.00")
+
+    # APPROVED or PAID
+    approved = random_money(Decimal("1.00"), claim_amount)
+    return status, approved
 
 # -----------------------------
 # Connect to Postgres
@@ -60,49 +138,76 @@ cur = conn.cursor()
 # Core generation logic (one iteration)
 # -----------------------------
 def run_iteration():
-    customers = []
-    # 1. Generate customers
-    for _ in range(NUM_CUSTOMERS):
+    members = []
+
+    # 1. Generate members
+    for _ in range(NUM_MEMBERS):
         first_name = fake.first_name()
         last_name = fake.last_name()
         email = fake.unique.email()
+        dob = random_dob(min_age=0, max_age=85)
 
         cur.execute(
-            "INSERT INTO customers (first_name, last_name, email) VALUES (%s, %s, %s) RETURNING id",
-            (first_name, last_name, email),
+            """
+            INSERT INTO members (first_name, last_name, email, date_of_birth)
+            VALUES (%s, %s, %s, %s)
+            RETURNING id
+            """,
+            (first_name, last_name, email, dob),
         )
-        customer_id = cur.fetchone()[0]
-        customers.append(customer_id)
+        member_id = cur.fetchone()[0]
+        members.append(member_id)
 
-    # 2. Generate accounts
-    accounts = []
-    for customer_id in customers:
-        for _ in range(ACCOUNTS_PER_CUSTOMER):
-            account_type = random.choice(["SAVINGS", "CHECKING"])
-            initial_balance = random_money(INITIAL_BALANCE_MIN, INITIAL_BALANCE_MAX)
+    # 2. Generate policies
+    policies = []  # list of tuples: (policy_id, start_date, end_date, coverage_amount)
+    for member_id in members:
+        for _ in range(POLICIES_PER_MEMBER):
+            policy_type = random.choice(POLICY_TYPES)
+            coverage_amount = random_money(COVERAGE_MIN, COVERAGE_MAX)
+            premium_amount = derive_premium(policy_type, coverage_amount)
+
+            start_date, end_date = random_policy_dates()
+            policy_status = choose_policy_status(end_date)
+
             cur.execute(
-                "INSERT INTO accounts (customer_id, account_type, balance, currency) VALUES (%s, %s, %s, %s) RETURNING id",
-                (customer_id, account_type, initial_balance, CURRENCY),
+                """
+                INSERT INTO policies
+                    (member_id, policy_type, coverage_amount, premium_amount, policy_status, start_date, end_date)
+                VALUES
+                    (%s, %s, %s, %s, %s, %s, %s)
+                RETURNING id
+                """,
+                (member_id, policy_type, coverage_amount, premium_amount, policy_status, start_date, end_date),
             )
-            account_id = cur.fetchone()[0]
-            accounts.append(account_id)
+            policy_id = cur.fetchone()[0]
+            policies.append((policy_id, start_date, end_date, coverage_amount))
 
-    # 3. Generate transactions
-    txn_types = ["DEPOSIT", "WITHDRAWAL", "TRANSFER"]
-    for _ in range(NUM_TRANSACTIONS):
-        account_id = random.choice(accounts)
-        txn_type = random.choice(txn_types)
-        amount = round(random.uniform(1, MAX_TXN_AMOUNT), 2)
-        related_account = None
-        if txn_type == "TRANSFER" and len(accounts) > 1:
-            related_account = random.choice([a for a in accounts if a != account_id])
+    # 3. Generate claims
+    for _ in range(NUM_CLAIMS):
+        policy_id, start_date, end_date, coverage_amount = random.choice(policies)
+
+        claim_type = random.choice(CLAIM_TYPES)
+        service_date = service_date_within_policy(start_date, end_date)
+
+        # Keep claims generally under a reasonable slice of coverage
+        max_claim = min(CLAIM_MAX, coverage_amount)
+        claim_amount = random_money(CLAIM_MIN, max_claim)
+
+        claim_status, approved_amount = claim_outcome(claim_amount)
 
         cur.execute(
-            "INSERT INTO transactions (account_id, txn_type, amount, related_account_id, status) VALUES (%s, %s, %s, %s, 'COMPLETED')",
-            (account_id, txn_type, amount, related_account),
+            """
+            INSERT INTO claims
+                (policy_id, claim_type, claim_amount, approved_amount, claim_status, service_date)
+            VALUES
+                (%s, %s, %s, %s, %s, %s)
+            """,
+            (policy_id, claim_type, claim_amount, approved_amount, claim_status, service_date),
         )
 
-    print(f" Generated {len(customers)} customers, {len(accounts)} accounts, {NUM_TRANSACTIONS} transactions.")
+    print(
+        f"Generated {len(members)} members, {len(policies)} policies, {NUM_CLAIMS} claims."
+    )
 
 try:
     iteration = 0
@@ -114,7 +219,8 @@ try:
         if not LOOP:
             break
         time.sleep(SLEEP_SECONDS)
-    print(f"\n Completed {iteration} iterations. Exiting...")
+
+    print(f"\nCompleted {iteration} iterations. Exiting...")
 
 except KeyboardInterrupt:
     print("\nInterrupted by user. Exiting gracefully...")

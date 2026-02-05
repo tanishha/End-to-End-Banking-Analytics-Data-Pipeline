@@ -1,32 +1,39 @@
-CREATE TABLE IF NOT EXISTS customers (
-id SERIAL PRIMARY KEY,
-first_name VARCHAR(100) NOT NULL,
-last_name VARCHAR(100) NOT NULL,
-email VARCHAR(255) UNIQUE NOT NULL,
-created_at TIMESTAMP WITH TIME ZONE DEFAULT now()
+CREATE TABLE IF NOT EXISTS members (
+    id SERIAL PRIMARY KEY,
+    first_name VARCHAR(100) NOT NULL,
+    last_name VARCHAR(100) NOT NULL,
+    email VARCHAR(255) UNIQUE NOT NULL,
+    date_of_birth DATE NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT now()
 );
 
 
-CREATE TABLE IF NOT EXISTS accounts (
-id SERIAL PRIMARY KEY,
-customer_id INT NOT NULL REFERENCES customers(id) ON DELETE CASCADE,
-account_type VARCHAR(50) NOT NULL,
-balance NUMERIC(18,2) NOT NULL DEFAULT 0 CHECK (balance >= 0),
-currency CHAR(3) NOT NULL DEFAULT 'USD',
-created_at TIMESTAMP WITH TIME ZONE DEFAULT now()
+CREATE TABLE IF NOT EXISTS policies (
+    id SERIAL PRIMARY KEY,
+    member_id INT NOT NULL REFERENCES members(id) ON DELETE CASCADE,
+    policy_type VARCHAR(50) NOT NULL,      -- HMO | PPO | EPO | Medicare | Medicaid
+    coverage_amount NUMERIC(18,2) NOT NULL CHECK (coverage_amount >= 0),
+    premium_amount NUMERIC(10,2) NOT NULL CHECK (premium_amount >= 0),
+    policy_status VARCHAR(20) NOT NULL DEFAULT 'ACTIVE',  -- ACTIVE | LAPSED | TERMINATED
+    start_date DATE NOT NULL,
+    end_date DATE NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT now()
 );
 
 
-CREATE TABLE IF NOT EXISTS transactions (
-id BIGSERIAL PRIMARY KEY,
-account_id INT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
-txn_type VARCHAR(50) NOT NULL, -- DEPOSIT | WITHDRAWAL | TRANSFER
-amount NUMERIC(18,2) NOT NULL CHECK (amount > 0),
-related_account_id INT NULL, -- for transfers
-status VARCHAR(20) NOT NULL DEFAULT 'COMPLETED',
-created_at TIMESTAMP WITH TIME ZONE DEFAULT now()
+CREATE TABLE IF NOT EXISTS claims (
+    id BIGSERIAL PRIMARY KEY,
+    policy_id INT NOT NULL REFERENCES policies(id) ON DELETE CASCADE,
+    claim_type VARCHAR(50) NOT NULL,     -- MEDICAL | DENTAL | PHARMACY
+    claim_amount NUMERIC(18,2) NOT NULL CHECK (claim_amount > 0),
+    approved_amount NUMERIC(18,2) DEFAULT 0 CHECK (approved_amount >= 0),
+    claim_status VARCHAR(20) NOT NULL DEFAULT 'SUBMITTED',  
+        -- SUBMITTED | APPROVED | REJECTED | PAID
+    service_date DATE NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT now()
 );
 
 
 -- Simple indexed columns for performance in queries
-CREATE INDEX IF NOT EXISTS idx_transactions_account_created ON transactions(account_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_claims_policy_created 
+ON claims(policy_id, created_at);
