@@ -133,7 +133,7 @@ def load_to_snowflake(**kwargs):
         print(f"Data loaded into {table}: {rows_loaded} rows")
         
         # Get copy command status
-        status_result = cur.execute(f"SELECT * FROM TABLE(RESULT_SCAN(LAST_QUERY_ID()))").fetchall()
+        status_result = cur.execute("SELECT * FROM TABLE(RESULT_SCAN(LAST_QUERY_ID()))").fetchall()
         print(f"Copy status: {status_result}")
         
         # Verify data was actually loaded
