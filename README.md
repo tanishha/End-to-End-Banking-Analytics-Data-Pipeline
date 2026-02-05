@@ -33,8 +33,7 @@ This pipeline demonstrates a complete modern data stack architecture used by fin
 - 2,000 accounts with varying balances, types, and currencies
 - 5,000 transactions with realistic timestamps
 
-Data generator creates synthetic banking data and inserts it into PostgreSQL. Every INSERT is captured by PostgreSQL's WAL, enabling Debezium to detect changes without modifying application code.
-
+Data generator creates synthetic banking data and inserts it into PostgreSQL. Every INSERT is captured by PostgreSQL's WAL, enabling Debezium to detect changes without modifying application code. DBeaver provides a database interface to query and verify data across PostgreSQL and Snowflake throughout the pipeline.
 ---
 
 ### 2. Kafka + Debezium CDC (Change Data Capture)
