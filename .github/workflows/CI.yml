@@ -62,7 +62,7 @@ jobs:
                 user: ${{ secrets.SNOWFLAKE_USER }}
                 password: ${{ secrets.SNOWFLAKE_PASSWORD }}
                 role: ACCOUNTADMIN
-                database: healthcare
+                database: banking
                 warehouse: ${{ secrets.SNOWFLAKE_WAREHOUSE }}
                 schema: analytics
           EOL
